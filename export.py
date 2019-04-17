@@ -99,9 +99,10 @@ def export(command, dump):
     Export CSV or JSON file
     """
     
-    FILE_NAME = "output"
-
     print("[ * ] Exporting data to file")
+        
+    FILE_NAME = "output"
+    
     if command.upper() == Command.PARSE_JSON.value:
         with open(FILE_NAME+".json", 'w') as f:
                json.dump(dump, f, indent=4, sort_keys=True)
