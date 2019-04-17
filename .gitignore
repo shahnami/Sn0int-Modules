@@ -1,0 +1,6 @@
+.DS_Store
+*.db*
+history
+.cache/
+*.json
+*.csv
