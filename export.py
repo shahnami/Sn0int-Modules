@@ -13,17 +13,22 @@ class Domain:
     Domain Class
     """
     
-    def __init__(self, id, name, unscoped):
+    def __init__(self, id, name):
         self.id = id
         self.name = name
-        self.unscoped = unscoped
         self.subdomains = list()
+    
+    def setSubDomain(self, subdomains):
+        self.subdomains = subdomains
         
     def addSubDomain(self, subdomain):
         self.subdomains.append(subdomain)
         
+    def remove(self, subdomain):
+        self.subdomains.remove(subdomain)
+        
     def toJSON(self):
-        return {"id": self.id, "name": self.name, "unscoped": self.unscoped, "subdomains": self.subdomains}
+        return {"id": self.id, "name": self.name, "subdomains": self.subdomains}
         
         
 class Subdomain:
@@ -31,14 +36,21 @@ class Subdomain:
     Subdomain Class
     """
     
-    def __init__(self, id, name, unscoped, resolvable):
+    def __init__(self, id, name, resolvable, asn):
         self.id = id
         self.name = name
-        self.unscoped = unscoped
         self.resolvable = resolvable
+        self.ips = list()
+        self.asn = asn
+        
+    def setIP(self, ips):
+        self.ips = ips
+        
+    def addIP(self, ip):
+        self.ips.append(ip)
         
     def toJSON(self):
-        return {"id": self.id, "name": self.name, "unscoped": self.unscoped, "resolvable": self.resolvable}
+        return {"id": self.id, "name": self.name, "resolvable": self.resolvable, "ips": self.ips, "asn": self.asn}
         
 
 class Command(Enum):
@@ -76,20 +88,29 @@ def extract(conn):
     
     # print("[ * ] Extracting Information")
     
+    
+    
     results = dict()
     results['data'] = list()
     
-    domains = conn.execute("SELECT * FROM domains")
-    for domain in domains:
-        d = Domain(domain[0], domain[1], domain[2])
+    all_in_one = conn.execute("SELECT domains.id, domains.value, subdomains.id, subdomains.value, subdomains.resolvable, ipaddrs.value, ipaddrs.asn, ipaddrs.as_org FROM domains LEFT JOIN subdomains ON domains.id = subdomains.domain_id  LEFT JOIN subdomain_ipaddrs ON subdomain_ipaddrs.subdomain_id = subdomains.id LEFT JOIN ipaddrs ON subdomain_ipaddrs.ip_addr_id = ipaddrs.id WHERE domains.unscoped = 0 AND subdomains.unscoped = 0 ORDER BY domains.id, subdomains.resolvable DESC")
+    for row in all_in_one:
+        domain = Domain(row[0], row[1])
+        subdomain = Subdomain(row[2], row[3], row[4], {"id": row[6], "organisation": row[7]})
         
-        subdomains = conn.execute("SELECT * FROM subdomains WHERE domain_id = %d" % domain[0])
-        
-        for subdomain in subdomains:
-            s = Subdomain(subdomain[0], subdomain[2], subdomain[3], subdomain[4])            
-            d.addSubDomain(s.toJSON())
-            
-        results['data'].append(d.toJSON())    
+        for entry in results['data']:
+            if entry['id'] == domain.id:
+                domain.setSubDomain(entry['subdomains'])
+                results['data'].remove(entry)
+                
+            for subentry in entry['subdomains']:
+                if subentry['id'] == subdomain.id:
+                    subdomain.setIP(subentry['ips'])
+                    domain.remove(subentry)
+                    
+        subdomain.addIP(row[5])            
+        domain.addSubDomain(subdomain.toJSON())
+        results['data'].append(domain.toJSON())
         
     return results
     
@@ -119,32 +140,33 @@ def export(args, command, dump):
                 
                 output.writerow(struct.values())
        
-  
-def listen(args):
+def reconnect(args):
     """
-    Initiate a socket and listen for incoming connections and commands
+    Due to bug in sn0int, we need to reinitialise the socket after every command
     """
-
+    
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(("", args.port))
     
     sock.listen(5)
-    connection = None
-    
-    try:
-        while True:
-            connection, address = sock.accept()
-            received_message = connection.recv(300)
-            if received_message.decode('ascii'):
-                execute(args, received_message.decode('ascii'))
-    except KeyboardInterrupt:
-        if connection:
-            connection.close()
-    finally:
-        sock.shutdown()
-        sock.close()
+    return sock
 
+def listen(args):
+    """
+    Listen for incoming commands
+    """
+    
+    sock = reconnect(args)
+    connection = None
+    while True:
+        connection, address = sock.accept()
+        received_message = connection.recv(300)
+        if received_message.decode('ascii'):
+            execute(args, received_message.decode('ascii'))
+            
+    connection.close()
+    sock.close()
    
 if __name__ == '__main__':
     """
@@ -159,3 +181,4 @@ if __name__ == '__main__':
     
     if(args.port):
         listen(args)
+        
