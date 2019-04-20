@@ -88,12 +88,17 @@ def extract(conn):
     
     # print("[ * ] Extracting Information")
     
-    
-    
     results = dict()
     results['data'] = list()
     
-    all_in_one = conn.execute("SELECT domains.id, domains.value, subdomains.id, subdomains.value, subdomains.resolvable, ipaddrs.value, ipaddrs.asn, ipaddrs.as_org FROM domains LEFT JOIN subdomains ON domains.id = subdomains.domain_id  LEFT JOIN subdomain_ipaddrs ON subdomain_ipaddrs.subdomain_id = subdomains.id LEFT JOIN ipaddrs ON subdomain_ipaddrs.ip_addr_id = ipaddrs.id WHERE domains.unscoped = 0 AND subdomains.unscoped = 0 ORDER BY domains.id, subdomains.resolvable DESC")
+    all_in_one = conn.execute("SELECT domains.id, domains.value, subdomains.id, subdomains.value, subdomains.resolvable, ipaddrs.value, ipaddrs.asn, ipaddrs.as_org 
+                                FROM domains 
+                                LEFT JOIN subdomains ON domains.id = subdomains.domain_id 
+                                LEFT JOIN subdomain_ipaddrs ON subdomain_ipaddrs.subdomain_id = subdomains.id 
+                                LEFT JOIN ipaddrs ON subdomain_ipaddrs.ip_addr_id = ipaddrs.id 
+                                WHERE domains.unscoped = 0 AND subdomains.unscoped = 0 
+                                ORDER BY domains.id, subdomains.resolvable DESC")
+                                
     for row in all_in_one:
         domain = Domain(row[0], row[1])
         subdomain = Subdomain(row[2], row[3], row[4], {"id": row[6], "organisation": row[7]})
