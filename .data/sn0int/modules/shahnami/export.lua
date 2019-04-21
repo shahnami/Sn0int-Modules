@@ -5,14 +5,20 @@
 function run(arg)
 	
 	command = getopt('command')
+	port = getopt('port')
 	
 	if not command then
-        error("Command is not set, e.g. \"set command json\"")
-		return
+		info("Command was not set, using default `set command json`")
+		command = 'json'
+    end
+	
+	if not port then
+		info("Port was not set, using default `set port 9008`")
+		port = 9008
     end
 
     -- create connection
-	sock = sock_connect("host.docker.internal", 9008)
+	sock = sock_connect("host.docker.internal", port)
     if last_err() then return end
 
     -- send command

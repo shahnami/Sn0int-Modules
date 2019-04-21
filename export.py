@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+from __future__ import with_statement
 
 import sys
 import socket 
@@ -7,6 +8,7 @@ import sqlite3
 import json
 import csv
 from enum import Enum
+from contextlib import closing
     
 class Domain:
     """
@@ -67,10 +69,13 @@ def execute(args, command):
     """
     
     # print("[ * ] Executing command [ %s ]" % command.upper())
-    c = connect(".data/sn0int/%s.db" % args.workspace.lower())
-    dump = extract(c)
-    export(args, command, dump)
-        
+    
+    conn = connect(".data/sn0int/%s.db" % args.workspace.lower())
+    
+    with closing(conn) as connection:
+        dump = extract(connection)
+        export(args, command, dump)
+    
     
 def connect(db):
     """
@@ -78,12 +83,19 @@ def connect(db):
     """
     
     # print("[ * ] Connecting to database [ %s ]" % db)
-    return sqlite3.connect(db).cursor()
+    
+    try:
+        conn = sqlite3.connect(db)
+        return conn
+    except Error as e:
+        print(e)
+
+    return None
     
     
 def extract(conn):
     """
-    Extract data from default.db sqlite file
+    Extract data from sqlite file
     """
     
     # print("[ * ] Extracting Information")
@@ -91,34 +103,34 @@ def extract(conn):
     results = dict()
     results['data'] = list()
     
-    all_in_one = conn.execute("SELECT domains.id, domains.value, subdomains.id, subdomains.value, subdomains.resolvable, ipaddrs.value, ipaddrs.asn, ipaddrs.as_org 
-                                FROM domains 
-                                LEFT JOIN subdomains ON domains.id = subdomains.domain_id 
-                                LEFT JOIN subdomain_ipaddrs ON subdomain_ipaddrs.subdomain_id = subdomains.id 
-                                LEFT JOIN ipaddrs ON subdomain_ipaddrs.ip_addr_id = ipaddrs.id 
-                                WHERE domains.unscoped = 0 AND subdomains.unscoped = 0 
-                                ORDER BY domains.id, subdomains.resolvable DESC")
-                                
-    for row in all_in_one:
+    statement = "SELECT domains.id, domains.value, subdomains.id, subdomains.value, subdomains.resolvable, ipaddrs.value, ipaddrs.asn, ipaddrs.as_org FROM domains LEFT JOIN subdomains ON domains.id = subdomains.domain_id LEFT JOIN subdomain_ipaddrs ON subdomain_ipaddrs.subdomain_id = subdomains.id LEFT JOIN ipaddrs ON subdomain_ipaddrs.ip_addr_id = ipaddrs.id WHERE domains.unscoped = 0 AND subdomains.unscoped = 0 ORDER BY domains.id, subdomains.resolvable DESC"
+    
+    data = []
+    
+    with closing(conn.cursor()) as cur:
+        cur.execute(statement)
+        data = cur.fetchall()
+    
+    for row in data:
         domain = Domain(row[0], row[1])
         subdomain = Subdomain(row[2], row[3], row[4], {"id": row[6], "organisation": row[7]})
-        
+
         for entry in results['data']:
             if entry['id'] == domain.id:
                 domain.setSubDomain(entry['subdomains'])
                 results['data'].remove(entry)
-                
+
             for subentry in entry['subdomains']:
                 if subentry['id'] == subdomain.id:
                     subdomain.setIP(subentry['ips'])
                     domain.remove(subentry)
-                    
-        subdomain.addIP(row[5])            
+
+        subdomain.addIP(row[5])
         domain.addSubDomain(subdomain.toJSON())
         results['data'].append(domain.toJSON())
-        
+
     return results
-    
+
     
 def export(args, command, dump):
     """
@@ -147,7 +159,7 @@ def export(args, command, dump):
        
 def reconnect(args):
     """
-    Due to bug in sn0int, we need to reinitialise the socket after every command
+    Create and bind a socket
     """
     
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -163,14 +175,14 @@ def listen(args):
     """
     
     sock = reconnect(args)
-    connection = None
+    
     while True:
         connection, address = sock.accept()
-        received_message = connection.recv(300)
+        received_message = connection.recv(1024)
         if received_message.decode('ascii'):
             execute(args, received_message.decode('ascii'))
             
-    connection.close()
+        connection.close()
     sock.close()
    
 if __name__ == '__main__':
