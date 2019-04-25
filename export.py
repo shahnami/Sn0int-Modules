@@ -7,6 +7,7 @@ import argparse
 import sqlite3
 import json
 import csv
+from pathlib import Path
 from enum import Enum
 from contextlib import closing
     
@@ -70,7 +71,8 @@ def execute(args, command):
     
     # print("[ * ] Executing command [ %s ]" % command.upper())
     
-    conn = connect(".data/sn0int/%s.db" % args.workspace.lower())
+    home = str(Path.home())
+    conn = connect("%s/%s.db" % (home+'/Library/Application Support/sn0int', args.workspace.lower()))
     
     with closing(conn) as connection:
         dump = extract(connection)

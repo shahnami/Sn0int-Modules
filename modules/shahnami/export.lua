@@ -4,11 +4,19 @@
 
 function run(arg)
 	
+	host = getopt('host')
 	command = getopt('command')
 	port = getopt('port')
 	
+	if not host then
+		info("Host was not set, using default `set host localhost`")
+		-- host = 'host.docker.internal'
+		host = 'localhost'
+    end
+	
 	if not command then
 		info("Command was not set, using default `set command json`")
+		-- command = 'csv'
 		command = 'json'
     end
 	
@@ -18,7 +26,7 @@ function run(arg)
     end
 
     -- create connection
-	sock = sock_connect("host.docker.internal", port)
+	sock = sock_connect(host, port)
     if last_err() then return end
 
     -- send command
