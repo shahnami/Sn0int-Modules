@@ -26,7 +26,7 @@ function run(arg)
     end
 
     -- create connection
-	sock = sock_connect(host, port, { tls=false })
+	sock = sock_connect(host, port)
     if last_err() then return end
 
     -- send command
