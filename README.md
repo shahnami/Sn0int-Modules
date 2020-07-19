@@ -42,3 +42,12 @@ Make sure the following line in `export.py` is modified to point to the generate
 ##### When using docker mode:
 
 `conn = connect("/path_to_repo/.data/sn0int/data/[workspace]/db.sqlite")`
+
+
+### Information
+
+For more information, please look at the documentation: 
+https://sn0int.readthedocs.io/en/stable/
+
+An IRC channel was setup for any questions around the framework at: 
+https://webirc.hackint.org/#irc://irc.hackint.org/#sn0int
